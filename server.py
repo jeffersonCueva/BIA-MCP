@@ -10,8 +10,8 @@ mcp = FastMCP("BIA")
 # Bank registry
 # -----------------------------
 BANK_APIS = {
-    "gcash": "http://localhost:8000",
-    "bpi": "http://localhost:8001",
+    "gcash": "http://localhost:8002",
+    "bpi": "http://localhost:8003",
 }
 
 CLEARING_HOUSE_API = "http://localhost:9000"
@@ -66,6 +66,89 @@ def get_transactions(user: str, bank: str) -> list:
         logging.error(e)
         return []
 
+# -----------------------------
+# Bill Payment helpers
+# -----------------------------
+def _fetch_billers_for_bank(bank: str) -> dict:
+    bank = bank.strip()
+    logging.info(f"Fetching billers for bank: {bank}")
+    api = BANK_APIS.get(bank.lower())
+    if not api:
+        return {}
+
+    try:
+        resp = httpx.get(f"{api}/supported-billers", timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, dict):
+            billers = data
+        elif isinstance(data, list):
+            if data and isinstance(data[0], dict):
+                billers = {item.get("code", "").upper(): item.get("name", "") for item in data}
+            else:
+                billers = {str(item).upper(): str(item) for item in data}
+        else:
+            billers = {}
+        return {k.strip().upper(): v for k, v in billers.items() if k}
+    except httpx.HTTPError as e:
+        logging.error(f"Error fetching billers from {bank}: {e}")
+        return {}
+
+
+@mcp.tool()
+def get_billers_for_bank(bank: str) -> dict:
+    return _fetch_billers_for_bank(bank)
+
+@mcp.tool()
+def pay_bill(
+    user: str,
+    bank: str,
+    biller_code: str,
+    reference_number: str,
+    amount: int,
+) -> str:
+    bank = bank.strip()
+    biller_code = biller_code.strip().upper()
+    logging.info(
+        f"Bill payment request: {user}@{bank} paying {amount} "
+        f"to biller {biller_code} (ref: {reference_number})"
+    )
+
+    api = BANK_APIS.get(bank.lower())
+    if not api:
+        logging.error(f"Unknown bank: {bank}")
+        return f"Unknown bank: {bank}"
+
+    try:
+        bank_billers = _fetch_billers_for_bank(bank)
+    except Exception as e:
+        logging.error(f"Failed to fetch billers for {bank}: {e}")
+        bank_billers = {}
+
+    if biller_code not in bank_billers:
+        logging.error(f"Unsupported biller code: {biller_code} for bank {bank}")
+        return f"Unsupported biller code: {biller_code} for bank {bank}. Supported: {list(bank_billers.keys())}"
+
+    if amount <= 0:
+        logging.error(f"Invalid bill payment amount: {amount}")
+        return "Amount must be greater than 0."
+
+    payload = {
+        "account_holder": user,
+        "biller_code": biller_code,
+        "reference_number": reference_number,
+        "amount": amount,
+    }
+
+    try:
+        response = httpx.post(f"{api}/bill-payment", json=payload, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        logging.info(f"Bill payment successful: {result}")
+        return result.get("message", "Bill payment completed successfully.")
+    except httpx.HTTPError as e:
+        logging.error(f"Bill payment failed: {e}")
+        return "Bill payment failed. Please try again later."
 
 # -----------------------------
 # Transfers (same-bank + interbank)

@@ -29,8 +29,8 @@ pip install -r requirements.txt
 
 ```python
 BANK_APIS = {
-    "gcash": "http://localhost:8000",
-    "bpi": "http://localhost:8001",
+    "gcash": "http://localhost:8002",
+    "bpi": "http://localhost:8003",
 }
 ```
 
@@ -61,7 +61,17 @@ get_transactions(user: str, bank: str) -> list
 
 * Retrieves the transaction history for a user.
 
-### 3. Transfer Funds
+### 3. Pay Bill
+
+```python
+pay_bill(user: str, bank: str, biller_code: str, reference_number: str, amount: int) -> str
+```
+
+* Pay bills through any registered bank.
+* Supports multiple billers with different biller codes.
+* Requires account holder name, bank, biller details, and payment amount.
+
+### 4. Transfer Funds
 
 ```python
 transfer_funds(from_user: str, from_bank: str, to_user: str, to_bank: str, amount: int) -> str
