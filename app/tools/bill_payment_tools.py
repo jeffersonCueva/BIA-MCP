@@ -4,6 +4,7 @@ from app.services.backend_service import get_bank_account_number
 
 import httpx
 import logging
+import hashlib
 from app.config import BANK_APIS
 
 
@@ -37,11 +38,16 @@ def register(mcp: FastMCP):
         if biller_code not in billers:
             return f"Unsupported biller code. Supported: {list(billers.keys())}"
 
+        # Generate deterministic idempotency key from payment details
+        idempotency_data = f"{user}:{biller_code}:{reference_number}:{amount}"
+        idempotency_key = hashlib.sha256(idempotency_data.encode()).hexdigest()
+
         payload = {
             "account_holder": user,
             "biller_code": biller_code,
             "reference_number": reference_number,
             "amount": amount,
+            "idempotency_key": idempotency_key,
         }
 
         try:
