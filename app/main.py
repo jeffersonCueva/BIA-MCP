@@ -6,6 +6,7 @@ from app.tools import (
     transaction_tools,
     bill_payment_tools,
     transfer_tools,
+    client_agent_tool,
 )
 
 
@@ -19,6 +20,8 @@ def create_app():
     transaction_tools.register(mcp)
     bill_payment_tools.register(mcp)
     transfer_tools.register(mcp)
+    transaction_tools.register(mcp)
+    client_agent_tool.register(mcp)
 
     return mcp
 
