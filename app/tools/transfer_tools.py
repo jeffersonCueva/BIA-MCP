@@ -23,7 +23,7 @@ def register(mcp: FastMCP):
         if not from_bank:
             from_bank = mcp.ask("Please enter your bank name:")
 
-        from_account = get_bank_account_number(from_bank)
+        from_account = get_bank_account_number(from_bank.lower())
 
         if from_bank.lower() == to_bank.lower():
             return same_bank_transfer(
