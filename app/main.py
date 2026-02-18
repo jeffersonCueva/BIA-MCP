@@ -23,16 +23,3 @@ def create_app():
     # client_agent_tool.register(mcp)
 
     return mcp
-
-
-def streamable_app():
-
-    mcp = FastMCP("BIA")
-
-    account_tools.register(mcp)
-    balance_tools.register(mcp)
-    transaction_tools.register(mcp)
-    bill_payment_tools.register(mcp)
-    transfer_tools.register(mcp)
-
-    return mcp.http_app(transport="streamable-http")
