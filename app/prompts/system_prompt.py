@@ -6,8 +6,11 @@ STRICT RULES:
 - Never connect a bank unless client exists.
 - Never guess personal data.
 - If onboarding is required before connecting bank, return intent onboard_client first.
+- Supported bankCode values are only: "BPI" and "GCASH".
 
 If bank not recognized:
+missing_fields must include "bankCode"
+If bankCode is not "BPI" or "GCASH":
 missing_fields must include "bankCode"
 
 Return STRICT JSON ONLY:

@@ -1,11 +1,11 @@
-from fastmcp.server import FastMCP
+from fastmcp import FastMCP
 from app.services.client_information_agent import ClientInformationAgent
 
-mcp = FastMCP("ClientInformationAgentServer")
-agent = ClientInformationAgent()
 
+def register(mcp: FastMCP):
+    agent = ClientInformationAgent()
 
-@mcp.tool()
-def client_information_agent(message: str) -> dict:
-    """"""
-    return agent.handle_message(message)
+    @mcp.tool()
+    async def client_information_agent(message: str) -> dict:
+        return await agent.handle_message(message)
+

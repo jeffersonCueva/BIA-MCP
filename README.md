@@ -12,11 +12,14 @@ This project provides a Python-based banking toolset built using **FastMCP**. It
 
 Make sure you have the following installed:
 
-* **Python 3.13**
+* **Python 3.11+** (3.13 recommended on macOS)
 
-Install dependencies using:
+Create and activate a Python 3.11 virtual environment, then install dependencies:
 
 ```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python --version  # should print 3.11.x or newer
 pip install -r requirements.txt
 ```
 
@@ -40,6 +43,27 @@ BANK_APIS = {
 ```python
 CLEARING_HOUSE_API = "http://localhost:9000"
 ```
+
+3. **Demo account ID mode (optional):**
+   If your backend returns user IDs (for example `bia-...`) and you need bank-formatted IDs for demo calls, you can enable:
+
+```bash
+USE_DEMO_BANK_ACCOUNT_IDS=true
+DEMO_GCASH_ACCOUNT_ID=GCASH001
+DEMO_BPI_ACCOUNT_ID=BPI001
+```
+
+Or pass it at runtime for SSE:
+
+```bash
+python run_sse.py -demo 001
+```
+
+This starts an in-process mock backend (same behavior as `mock_backend.py`) and serves demo
+account IDs `GCASH001` and `BPI001` for that run only.
+
+Without `-demo`, `run_sse.py` keeps the normal flow and resolves account IDs using
+`LOGGED_IN_USER` via `BIABACKENDURL`.
 
 ---
 
@@ -84,14 +108,34 @@ transfer_funds(from_user: str, from_bank: str, to_user: str, to_bank: str, amoun
 
 ## Running the MCP Server
 
-Run the FastMCP development server to start the MCP instance and register all tools:
+Run the MCP instance using one of the provided entrypoints:
 
 ```bash
-fastmcp dev server.py
+python run_sse.py
 ```
 
-* Replace `server.py` with the filename of your script if different.
-* Once running, the MCP instance `BIA` will expose the tools for use in other applications or automation workflows.
+Alternative transport:
+
+```bash
+python run_streamable_http
+```
+
+Once running, the MCP instance `BIA` will expose the tools for use in other applications or automation workflows.
+
+### Local Mock Backend (for account lookup testing)
+
+This repo includes a lightweight mock backend that serves:
+
+* `GET /account/{user_id}`
+* `GET /account/bank/{user_id}/{bank}`
+
+Run it in a separate terminal:
+
+```bash
+python mock_backend.py
+```
+
+It listens on `http://127.0.0.1:9001` by default, matching `BIABACKENDURL`.
 
 ---
 
