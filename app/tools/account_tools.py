@@ -16,4 +16,12 @@ def register(mcp: FastMCP):
         """
         get the account number of specific bank of the logged in user
         """
-        return get_bank_account_number(bank)
+        account_number = get_bank_account_number(bank)
+        if isinstance(account_number, dict) and account_number.get("status") == "error":
+            return account_number
+        if not account_number:
+            return (
+                "Could not resolve your bank account number from backend. "
+                "Account-dependent operations require BIABACKENDURL to be reachable."
+            )
+        return account_number

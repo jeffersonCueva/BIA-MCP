@@ -1,35 +1,83 @@
 import os
 import json
-import uuid
-import re
-from datetime import datetime
-from openai import AzureOpenAI
-from utils.cosmo_db import get_database, CosmosContainer
-from utils.validators import valid_email, valid_mobile
-from prompts.system_prompt import SYSTEM_PROMPT
-from prompts.developer_prompt import DEVELOPER_PROMPT
-from prompts.intent_prompt import INTENT_EXTRACTION_PROMPT
-
-# Azure OpenAI Client
-client_ai = AzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-)
-
-# Cosmos DB Clients
-bia_db = get_database("bia_db")
-mock_bpi_db = get_database("mock-bank-db-bpi")
-mock_gcash_db = get_database("mock-bank-db-gcash")
-
-clients_container = CosmosContainer(bia_db.get_container_client("clients"))
-bpi_accounts = CosmosContainer(mock_bpi_db.get_container_client("accounts"))
-gcash_accounts = CosmosContainer(mock_gcash_db.get_container_client("accounts"))
+import logging
+try:
+    from openai import AzureOpenAI
+except ImportError:
+    AzureOpenAI = None
+from app.utils.cosmo_db import get_database, CosmosContainer
+from app.utils.validators import valid_email, valid_mobile
+from app.prompts.system_prompt import SYSTEM_PROMPT
+from app.prompts.developer_prompt import DEVELOPER_PROMPT
+from app.prompts.intent_prompt import INTENT_EXTRACTION_PROMPT
 
 class ClientInformationAgent:
+    def __init__(self):
+        self.client_ai = None
+        self.clients_container = None
+        self.bpi_accounts = None
+        self.gcash_accounts = None
+        self._init_error = None
+        self._initialize()
+
+    def _initialize(self):
+        if AzureOpenAI is None:
+            self._init_error = "Missing dependency: 'openai'."
+            return
+
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION")
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+
+        missing = []
+        if not api_key:
+            missing.append("AZURE_OPENAI_API_KEY")
+        if not api_version:
+            missing.append("AZURE_OPENAI_API_VERSION")
+        if not endpoint:
+            missing.append("AZURE_OPENAI_ENDPOINT")
+        if not deployment:
+            missing.append("AZURE_OPENAI_DEPLOYMENT")
+
+        if missing:
+            self._init_error = f"Missing environment variables: {', '.join(missing)}"
+            return
+
+        try:
+            self.client_ai = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint,
+            )
+
+            bia_db = get_database("bia_db")
+            mock_bpi_db = get_database("mock-bank-db-bpi")
+            mock_gcash_db = get_database("mock-bank-db-gcash")
+
+            self.clients_container = CosmosContainer(
+                bia_db.get_container_client("clients")
+            )
+            self.bpi_accounts = CosmosContainer(
+                mock_bpi_db.get_container_client("accounts")
+            )
+            self.gcash_accounts = CosmosContainer(
+                mock_gcash_db.get_container_client("accounts")
+            )
+        except Exception as e:
+            logging.exception("Failed to initialize ClientInformationAgent")
+            self._init_error = str(e)
+
+    def _not_ready_response(self):
+        if self._init_error:
+            return {
+                "status": "error",
+                "message": f"Client information agent is not configured: {self._init_error}",
+            }
+        return None
 
     def _extract_intent(self, message: str):
-        completion = client_ai.chat.completions.create(
+        completion = self.client_ai.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -38,10 +86,22 @@ class ClientInformationAgent:
             ],
             temperature=0
         )
-        return json.loads(completion.choices[0].message.content)
+        content = completion.choices[0].message.content
+        return json.loads(content)
 
     async def handle_message(self, message: str):
-        intent_obj = self._extract_intent(message)
+        not_ready = self._not_ready_response()
+        if not_ready:
+            return not_ready
+
+        try:
+            intent_obj = self._extract_intent(message)
+        except json.JSONDecodeError:
+            return {"status": "error", "message": "Could not parse agent response as JSON"}
+        except Exception:
+            logging.exception("Intent extraction failed")
+            return {"status": "error", "message": "Intent extraction failed"}
+
         intent = intent_obj.get("intent")
         f = intent_obj.get("extracted_fields", {})
         missing = intent_obj.get("missing_fields", [])
@@ -59,13 +119,13 @@ class ClientInformationAgent:
 
     async def get_client(self, f):
         query = {"email": f.get("email")} if f.get("email") else {"userId": f.get("userId")}
-        client = await clients_container.find_one(query)
+        client = await self.clients_container.find_one(query)
         if not client:
             return {"status": "error", "message": "Client not found"}
         
         # Fetch linked accounts from all banks
         accounts = []
-        for bank in [bpi_accounts, gcash_accounts]:
+        for bank in [self.bpi_accounts, self.gcash_accounts]:
             bank_accounts = await bank.find_all({"userId": client["userId"]})
             accounts.extend(bank_accounts)
         
@@ -74,7 +134,7 @@ class ClientInformationAgent:
 
     async def update_client(self, f):
         query = {"email": f.get("email")} if f.get("email") else {"userId": f.get("userId")}
-        client = await clients_container.find_one(query)
+        client = await self.clients_container.find_one(query)
         if not client:
             return {"status": "error", "message": "Client not found"}
 
@@ -90,5 +150,5 @@ class ClientInformationAgent:
         if not update_fields:
             return {"status": "clarify", "missing_fields": ["fields_to_update"]}
 
-        await clients_container.update_one(query, update_fields)
+        await self.clients_container.update_one(query, update_fields)
         return {"status": "success", "updated_fields": update_fields}
