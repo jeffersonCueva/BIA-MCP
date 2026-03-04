@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "BIA-MCP": {
+      "command": "/Users/LOCAL/PATH/BIA-MCP/.venv/bin/python",
+      "args": [
+        "/Users/LOCAL/PATH/BIA-MCP/run.py"
+      ],
+      "env": {
+        "LOGGED_IN_USER": "ADD-LOGGED-IN-USER-HERE-FOR-TESTING",
+        "BIABACKENDURL": "http://127.0.0.1:9001",
+        "USE_LOCAL_USER_FALLBACK": "true",
+        "AZURE_OPENAI_ENDPOINT": "https://OPEN.AI.ENDPOINT",
+        "AZURE_OPENAI_API_KEY": "OPEN-AI-KEY",
+        "AZURE_OPENAI_DEPLOYMENT": "gpt-4.1",
+        "AZURE_OPENAI_API_VERSION": "2024-05-01-preview",
+        "COSMOS_ENDPOINT": "https://AZURE.COSMOS/ENDPOINT/HERE:443/",
+        "COSMOS_KEY": "COSMOS-KEY-HERE"
+      }
+    }
+  },
+  "preferences": {
+    "sidebarMode": "chat",
+    "coworkScheduledTasksEnabled": false
+  }
+}
+ 
